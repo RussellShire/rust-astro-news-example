@@ -1,0 +1,9 @@
+node_modules
+.astro
+dist
+target
+pkg
+.env
+.git
+.gitignore
+README.md

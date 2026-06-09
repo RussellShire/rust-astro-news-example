@@ -1,0 +1,35 @@
+# -----------------------------
+# Secrets & Environment
+# -----------------------------
+.env
+
+# -----------------------------
+# Node.js & Astro Frontend
+# -----------------------------
+node_modules/
+astro-site/node_modules/
+astro-site/dist/
+astro-site/.astro/
+npm-debug.log*
+yarn-error.log*
+
+# -----------------------------
+# Rust & Cargo 
+# -----------------------------
+# Ignores the compiled binaries for both render-pod and native-host
+target/
+**/target/
+**/*.rs.bk
+
+# -----------------------------
+# Inter-Pod Build Artifacts
+# -----------------------------
+# Ignore the WebAssembly bundle copied over by the docker-compose script
+astro-site/pkg/
+
+# -----------------------------
+# OS & Editor Files
+# -----------------------------
+.DS_Store
+Thumbs.db
+.idea/

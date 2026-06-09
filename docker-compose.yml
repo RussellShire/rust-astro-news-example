@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  # 1. Astro Component Bundler: Builds client script assets into static output directories
+  astro-compiler:
+    image: node:22-alpine
+    volumes:
+      - ./astro-site:/app
+    working_dir: /app
+    command: sh -c "npm install && npm run build"
+
+  # 2. WASM Core Compiler: Generates portable layout binary engine
+  wasm-compiler:
+    image: rust:slim
+    volumes:
+      - .:/workspace
+    working_dir: /workspace/render-pod
+    # Replaced wasm-pack with pure cargo WebAssembly compilation
+    command: >
+      sh -c "apt-get update && apt-get install -y curl pkg-config libssl-dev build-essential &&
+             rustup target add wasm32-unknown-unknown &&
+             cargo build --release --target wasm32-unknown-unknown &&
+             mkdir -p ../astro-site/pkg &&
+             cp target/wasm32-unknown-unknown/release/render_pod.wasm ../astro-site/pkg/render_pod_bg.wasm"
+
+  # 3. Native Application Runner: Connects endpoints, triggers fetch first, compiles WASM, mounts islands
+  platform-server:
+    image: rust:slim
+    depends_on:
+      astro-compiler:
+        condition: service_completed_successfully
+      wasm-compiler:
+        condition: service_completed_successfully
+    volumes:
+      - .:/workspace
+    working_dir: /workspace/native-host
+    ports:
+      - "4321:4321"
+    environment:
+      - THENEWSAPI_KEY=${THENEWSAPI_KEY}
+    command: >
+      sh -c "apt-get update && apt-get install -y pkg-config libssl-dev build-essential ca-certificates &&
+             cargo run --bin server"
