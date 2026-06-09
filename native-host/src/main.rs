@@ -94,25 +94,40 @@ async fn render_page(State(state): State<Arc<AppState>>, category: String) -> Ht
 
     let full_skeleton = format!("{}{}</main><div id='react-island-footer-recirc'></div>", skeleton_layout, articles_html);
 
-    // Dynamic extraction of the compiled Astro file mapping hash
-    let asset_dir = std::fs::read_dir("/workspace/astro-site/dist/assets").unwrap();
+    let mut script_tags = String::new();
 
-    let mut script_filename = String::from("fallback.js");
-    if let Ok(asset_dir) = std::fs::read_dir("/workspace/astro-site/dist/assets") {
-        for entry in asset_dir.flatten() {
-            let name = entry.file_name().to_string_lossy().into_owned();
-            // Just grab the first compiled JavaScript file we find
-            if name.ends_with(".js") {
-                script_filename = name;
+    // Read the compiled index template Astro generated
+    if let Ok(html_content) = std::fs::read_to_string("/workspace/astro-site/dist/index.html") {
+        // Robustly find ALL script tags regardless of attribute order
+        let mut current_idx = 0;
+        while let Some(start) = html_content[current_idx..].find("<script") {
+            let absolute_start = current_idx + start;
+            if let Some(end) = html_content[absolute_start..].find("</script>") {
+                let absolute_end = absolute_start + end + 9;
+                let mut exact_tag = html_content[absolute_start..absolute_end].to_string();
+
+                // Map Astro's absolute paths to our Axum proxy router prefix
+                exact_tag = exact_tag.replace("src=\"/", "src=\"/astro/");
+                script_tags.push_str(&exact_tag);
+                script_tags.push('\n');
+
+                current_idx = absolute_end;
+            } else {
                 break;
             }
         }
     }
 
-    let script_tag = format!("<script type=\"module\" src=\"/astro/assets/{}\"></script>", script_filename);
+    // Add a terminal log so we can debug exactly what Rust is finding
+    if script_tags.is_empty() {
+        println!("⚠️ WARNING: No script tags found in Astro's index.html! Check the Astro build output.");
+        script_tags = "".to_string();
+    } else {
+        println!("✅ Injected Astro Scripts: {}", script_tags.trim());
+    }
 
     let mut full_html = String::new();
-    // FIXED: Notice how all CSS blocks now use {{ and }} to safely escape macro formatting
+    // Use `script_tags` instead of `script_tag`
     full_html.push_str(&format!(
         r#"<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -124,7 +139,7 @@ async fn render_page(State(state): State<Arc<AppState>>, category: String) -> Ht
           .card {{ background: white; padding: 1rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }}
         </style>
         {}
-        </head><body>"#, script_tag
+        </head><body>"#, script_tags
     ));
 
     full_html.push_str(&full_skeleton);
